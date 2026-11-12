@@ -1,0 +1,404 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Каркас с ящиком</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout styles */
+:root{
+  --bg:#d9dadd;
+  --fg:#1f2024;
+  --muted:#5f6269;
+  --panel:rgba(250,250,251,.9);
+  --line:#c3c6cb;
+  --accent:#2f4f73;
+  --accent-fg:#ffffff;
+  --font-display:'Space Grotesk','Inter',system-ui,sans-serif;
+  --font-body:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1b1c1f;
+    --fg:#ecedf0;
+    --muted:#a3a6ad;
+    --panel:rgba(31,32,36,.9);
+    --line:#3c3e44;
+    --accent:#9bb8da;
+    --accent-fg:#0d1624;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1b1c1f;
+  --fg:#ecedf0;
+  --muted:#a3a6ad;
+  --panel:rgba(31,32,36,.9);
+  --line:#3c3e44;
+  --accent:#9bb8da;
+  --accent-fg:#0d1624;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{margin:0;position:relative;overflow:hidden;background:var(--bg);color:var(--fg);font-family:var(--font-body)}
+#stage{position:absolute;inset:0;touch-action:none}
+#stage canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+#stage canvas:active{cursor:grabbing}
+.ui{position:absolute;left:0;right:0;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));pointer-events:none}
+.ui.top{top:12px}
+.ui.bottom{bottom:12px}
+.card{display:inline-block;max-width:min(560px,100%);box-sizing:border-box;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.card h1{margin:0 0 3px;font:600 17px/1.2 var(--font-display);letter-spacing:-.01em;text-wrap:balance}
+.card p{margin:0;font-size:12.5px;line-height:1.45;color:var(--muted)}
+.bar{display:flex;flex-wrap:wrap;gap:8px;pointer-events:auto}
+.btn{min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:var(--panel);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);color:var(--fg);font:500 13px var(--font-body);cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.sep{width:1px;background:var(--line);margin:4px 2px}
+.tag{position:absolute;left:0;top:0;padding:3px 8px;border-radius:999px;background:var(--panel);border:1px solid var(--line);color:var(--fg);font:500 11px var(--font-body);white-space:nowrap;pointer-events:none;transform:translate(-50%,-50%);font-variant-numeric:tabular-nums}
+#msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;color:var(--muted)}
+</style>
+
+<div id="stage"></div>
+<div id="tags" aria-hidden="true"></div>
+<div class="ui top">
+  <div class="card">
+    <h1>Каркас с ящиком</h1>
+    <p>Каркас 672 × 600 мм. Внизу стиральная машина, сверху — вторая машина. Под верхней машиной находится выдвижной ящик-платформа.</p>
+  </div>
+</div>
+<div class="ui bottom">
+  <div class="bar" role="toolbar" aria-label="Вид">
+    <button class="btn" data-view="front" type="button">Спереди</button>
+    <button class="btn" data-view="left" type="button">Слева</button>
+    <button class="btn" data-view="right" type="button">Справа</button>
+    <button class="btn" data-view="top" type="button">Сверху</button>
+    <span class="sep" aria-hidden="true"></span>
+    <button class="btn" id="mach" type="button" aria-pressed="true">Машины</button>
+    <button class="btn" id="std" type="button" aria-pressed="false">Стандарт 850 мм</button>
+    <button class="btn" id="tray" type="button" aria-pressed="false">Выдвинуть ящик</button>
+    <button class="btn" id="lab" type="button" aria-pressed="false">Размеры</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  var stage = document.getElementById('stage');
+  if (!window.THREE) { stage.innerHTML = '<div id="msg">Не удалось загрузить 3D-библиотеку.</div>'; return; }
+  var THREE = window.THREE;
+  var renderer;
+  try { renderer = new THREE.WebGLRenderer({ antialias: true }); }
+  catch (e) { stage.innerHTML = '<div id="msg">Этот браузер не поддерживает 3D-графику (WebGL).</div>'; return; }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  stage.appendChild(renderer.domElement);
+
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xd3d4d7);
+  var camera = new THREE.PerspectiveCamera(36, 1, 50, 40000);
+
+  /* ---------- materials ---------- */
+  var M = {
+    steel: new THREE.MeshStandardMaterial({ color: 0x8b8f94, roughness: 0.5, metalness: 0.75, envMapIntensity: 1.2 }),
+    appl: new THREE.MeshPhysicalMaterial({ color: 0xf4f5f6, roughness: 0.35, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.25, envMapIntensity: 1 }),
+    glassPanel: new THREE.MeshStandardMaterial({ color: 0x14161a, roughness: 0.2, metalness: 0.2 }),
+    display: new THREE.MeshStandardMaterial({ color: 0x0b1118, emissive: 0x6fb7ff, emissiveIntensity: 0.9, roughness: 0.4 }),
+    chrome: new THREE.MeshStandardMaterial({ color: 0xc9cdd1, roughness: 0.25, metalness: 0.9, envMapIntensity: 1.3 }),
+    panSteel: new THREE.MeshStandardMaterial({ color: 0xc4c8cc, roughness: 0.45, metalness: 0.9, envMapIntensity: 1.2 }),
+    darkRing: new THREE.MeshStandardMaterial({ color: 0x4a5560, roughness: 0.3, metalness: 0.85, envMapIntensity: 1.2 }),
+    glass: new THREE.MeshPhysicalMaterial({ color: 0x1c222b, roughness: 0.05, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 1.4 }),
+    black: new THREE.MeshBasicMaterial({ color: 0x050607 }),
+    floor: new THREE.MeshStandardMaterial({ color: 0xdcdde0, roughness: 0.85, envMapIntensity: 0.4 }),
+    wall: new THREE.MeshStandardMaterial({ color: 0xc9cacd, roughness: 1, envMapIntensity: 0.35 })
+  };
+
+  /* ---------- room ---------- */
+  function rbox(w, h, d, x, y, z, mat) {
+    var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x + w / 2, y + h / 2, z + d / 2); m.receiveShadow = true; scene.add(m); return m;
+  }
+  rbox(14000, 20, 14000, -6600, -20, -7000, M.floor);
+  rbox(14000, 6000, 20, -6600, 0, -1700, M.wall);
+
+  /* ---------- the model ---------- */
+  var G = new THREE.Group(); scene.add(G);
+  var MACH = new THREE.Group();
+  var info = { HT: 2600, P: 800, LH: 765 };
+  var TRAY = null, UPM = null, trayT = 0, trayCur = 0; // Tray starts hidden (0)
+
+  function box(w, h, d, x, y, z, mat, parent) {
+    var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x + w / 2, y + h / 2, z + d / 2);
+    m.castShadow = true; m.receiveShadow = true;
+    (parent || G).add(m); return m;
+  }
+  function diag(y0, z0, y1, z1, x, mat) {
+    var dy = y1 - y0, dz = z1 - z0, L = Math.sqrt(dy * dy + dz * dz);
+    var m = new THREE.Mesh(new THREE.BoxGeometry(20, L, 20), mat);
+    m.position.set(x, (y0 + y1) / 2, (z0 + z1) / 2);
+    m.rotation.x = Math.atan2(dz, dy);
+    m.castShadow = true; m.receiveShadow = true; G.add(m);
+  }
+
+  /* Machine generator */
+  function machine(x0, y0, z0, H, ringMat) {
+    var g = new THREE.Group();
+    var Wm = 600, Dm = 535;
+    g.position.set(x0 + Wm / 2, y0, z0 + Dm / 2);
+    function add(m) { m.castShadow = true; m.receiveShadow = true; g.add(m); return m; }
+    add(new THREE.Mesh(new THREE.BoxGeometry(Wm, H, Dm), M.appl)).position.set(0, H / 2, 0);
+    var strip = add(new THREE.Mesh(new THREE.BoxGeometry(560, 70, 6), M.glassPanel)); strip.position.set(0, H - 60, Dm / 2 + 3);
+    var disp = add(new THREE.Mesh(new THREE.BoxGeometry(130, 30, 2), M.display)); disp.position.set(-150, H - 60, Dm / 2 + 7);
+    var knob = add(new THREE.Mesh(new THREE.CylinderGeometry(34, 34, 14, 40), M.chrome)); knob.rotation.x = Math.PI / 2; knob.position.set(190, H - 60, Dm / 2 + 13);
+    var yc = (H - 100) / 2 + 20, zf = Dm / 2;
+    var ring = add(new THREE.Mesh(new THREE.TorusGeometry(160, 20, 20, 72), ringMat)); ring.position.set(0, yc, zf);
+    var bez = add(new THREE.Mesh(new THREE.TorusGeometry(180, 7, 14, 72), M.chrome)); bez.position.set(0, yc, zf - 4);
+    var back = new THREE.Mesh(new THREE.CircleGeometry(152, 64), M.black); back.position.set(0, yc, zf - 14); g.add(back);
+    var gg = new THREE.SphereGeometry(150, 48, 16, 0, Math.PI * 2, 0, Math.PI / 2); gg.rotateX(Math.PI / 2);
+    var dome = add(new THREE.Mesh(gg, M.glass)); dome.scale.set(1, 1, 0.28); dome.position.set(0, yc, zf - 12);
+    return g;
+  }
+
+  var tagsEl = document.getElementById('tags'), TAGS = [], labelsOn = false;
+  function setTags(list) {
+    tagsEl.innerHTML = ''; TAGS = list.map(function (a) {
+      var el = document.createElement('div'); el.className = 'tag'; el.textContent = a[0]; el.hidden = !labelsOn;
+      tagsEl.appendChild(el);
+      return { el: el, pos: new THREE.Vector3(a[1], a[2], a[3]) };
+    });
+  }
+
+  function build(std) {
+    while (G.children.length) G.remove(G.children[0]);
+    var P = std ? 890 : 800, LH = std ? 850 : 765, HT = P + 1800, W = 672, Dp = 600, t = 30, S = M.steel;
+    info = { HT: HT, P: P, LH: LH };
+
+    // Frame pillars
+    [[0, 0], [W - t, 0], [0, Dp - t], [W - t, Dp - t]].forEach(function (c) { box(t, HT, t, c[0], 0, c[1], S); });
+    
+    // Horizontal rings
+    function ringAt(yTop, front) {
+      box(W - 2 * t, t, t, t, yTop - t, 0, S);
+      if (front) box(W - 2 * t, t, t, t, yTop - t, Dp - t, S);
+      box(t, t, Dp - 2 * t, 0, yTop - t, t, S);
+      box(t, t, Dp - 2 * t, W - t, yTop - t, t, S);
+    }
+    ringAt(HT, true);                       // top ring
+    ringAt(P + 1330, true);                 // second ring
+    
+    // Crossbars for upper section support
+    box(W - 2 * t, t, t, t, P + 920 - t, Dp - t, S);   
+    box(W - 2 * t, t, t, t, P + 920 - t, 0, S);        
+    
+    ringAt(P, true);                        // platform ring (where the drawer sits)
+    
+    // Rails for the drawer mechanism
+    box(t, t, Dp - 2 * t, 130, P - t, t, S);           
+    box(t, t, Dp - 2 * t, W - 130 - t, P - t, t, S);
+    
+    // Bottom rails
+    box(t, t, Dp - 2 * t, 0, 0, t, S);                 
+    box(t, t, Dp - 2 * t, W - t, 0, t, S);
+    box(W - 2 * t, t, t, t, 0, 0, S);
+    
+    // Bracing
+    diag(P, t, P + 1330, Dp - t, W - t / 2, S);        
+    diag(P, Dp - t, P + 1330, t, W - t / 2, S);
+
+    // Fixed slide rails on the frame
+    [130, W - 130 - t].forEach(function (rx) { box(12, 10, 520, rx + 9, P, 40, M.chrome); });
+
+    // THE DRAWER (TRAY) - Moves in Z
+    TRAY = new THREE.Group(); G.add(TRAY);
+    // Slide parts attached to tray
+    [130, W - 130 - t].forEach(function (rx) { box(12, 8, 500, rx + 9, P + 10, 40, M.chrome, TRAY); });
+    // Drawer Box structure
+    box(600, 2, 500, 36, P + 18, 27, M.panSteel, TRAY);        // bottom
+    box(600, 40, 2, 36, P + 20, 27 + 498, M.panSteel, TRAY);   // front wall
+    box(600, 40, 2, 36, P + 20, 27, M.panSteel, TRAY);         // back wall
+    box(2, 40, 500, 36, P + 20, 27, M.panSteel, TRAY);         // left wall
+    box(2, 40, 500, 634, P + 20, 27, M.panSteel, TRAY);        // right wall
+
+    // Machines Group
+    MACH = new THREE.Group(); G.add(MACH);
+    
+    // Lower machine (fixed)
+    var low = machine(36, 0, 32, LH, M.chrome); MACH.add(low);
+    
+    // Upper machine (FIXED to frame, NOT to tray)
+    UPM = machine(36, P + 20, 32, 850, M.darkRing); MACH.add(UPM); 
+    
+    MACH.visible = document.getElementById('mach').getAttribute('aria-pressed') === 'true';
+
+    setTags([
+      ['672 мм', W / 2, HT + 90, Dp], ['600 мм', W + 90, HT + 20, Dp / 2], ['900 мм', -90, P + 450, Dp],
+      ['Стиральная машина', W + 190, LH / 2, Dp], ['Верхняя машина', W + 190, P + 425, Dp],
+      ['Выдвижной ящик', W + 190, P + 20, Dp + 250]
+    ]);
+    tgt.set(W / 2, HT / 2, 300);
+    dirty = true;
+  }
+
+  /* ---------- light & shadows ---------- */
+  (function () {
+    var es = new THREE.Scene();
+    var gc = document.createElement('canvas'); gc.width = 4; gc.height = 256;
+    var gg = gc.getContext('2d'), gr = gg.createLinearGradient(0, 0, 0, 256);
+    gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.5, '#dfe3e8'); gr.addColorStop(0.55, '#c3c5c8'); gr.addColorStop(1, '#9a9ca0');
+    gg.fillStyle = gr; gg.fillRect(0, 0, 4, 256);
+    var gt = new THREE.CanvasTexture(gc); gt.encoding = THREE.sRGBEncoding;
+    es.add(new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), new THREE.MeshBasicMaterial({ map: gt, side: THREE.BackSide })));
+    function panel(w, h, x, y, z, k) {
+      var pl = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(k, k, k), side: THREE.DoubleSide }));
+      pl.position.set(x, y, z); pl.lookAt(0, 0, 0); es.add(pl);
+    }
+    panel(30, 22, -34, 10, 22, 6);
+    panel(40, 6, 0, 40, 10, 3);
+    panel(14, 20, 38, 8, 14, 2);
+    var pm = new THREE.PMREMGenerator(renderer);
+    scene.environment = pm.fromScene(es, 0.03).texture;
+    pm.dispose();
+  })();
+  scene.add(new THREE.HemisphereLight(0xf2f4f8, 0xd0cfcb, 0.3));
+  var sun = new THREE.DirectionalLight(0xfff3e4, 1.4);
+  sun.position.set(-2600, 3600, 3200);
+  sun.target.position.set(336, 1300, 300);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(4096, 4096);
+  var sc = sun.shadow.camera; sc.left = -2400; sc.right = 2400; sc.top = 2400; sc.bottom = -2400; sc.near = 500; sc.far = 11000;
+  sun.shadow.bias = -0.0004; sun.shadow.normalBias = 1.5; sun.shadow.radius = 3;
+  scene.add(sun); scene.add(sun.target);
+
+  (function () {
+    var cc = document.createElement('canvas'); cc.width = cc.height = 256;
+    var g = cc.getContext('2d');
+    g.shadowColor = 'rgba(0,0,0,1)'; g.shadowBlur = 20; g.fillStyle = 'rgba(0,0,0,1)';
+    g.fillRect(45, 48, 167, 160);
+    var tx = new THREE.CanvasTexture(cc);
+    var pl = new THREE.Mesh(new THREE.PlaneGeometry(1032, 960), new THREE.MeshBasicMaterial({ map: tx, transparent: true, opacity: 0.45, depthWrite: false }));
+    pl.rotation.x = -Math.PI / 2; pl.position.set(336, 1, 300); scene.add(pl);
+  })();
+
+  /* ---------- camera orbit ---------- */
+  var tgt = new THREE.Vector3(336, 1300, 300);
+  var s = { theta: -0.6, phi: 1.32, r: 7000 };
+  var touched = false, dirty = true;
+  function apply() {
+    s.theta = Math.max(-1.4, Math.min(1.4, s.theta));
+    s.phi = Math.max(0.35, Math.min(1.55, s.phi));
+    s.r = Math.max(1200, Math.min(14000, s.r));
+    var sp = Math.sin(s.phi);
+    camera.position.set(tgt.x + s.r * sp * Math.sin(s.theta), tgt.y + s.r * Math.cos(s.phi), tgt.z + s.r * sp * Math.cos(s.theta));
+    camera.lookAt(tgt);
+    dirty = true;
+  }
+  function fitR() {
+    var f = Math.tan(camera.fov * Math.PI / 360);
+    return Math.max(950 / (f * Math.min(camera.aspect, 1.6)), (info.HT / 2 + 330) / f) * 1.1;
+  }
+  var VIEWS = { front: { theta: 0, phi: 1.5 }, left: { theta: -0.6, phi: 1.32 }, right: { theta: 0.6, phi: 1.32 }, top: { theta: 0, phi: 0.6 } };
+  function goTo(p) {
+    touched = true;
+    var from = { theta: s.theta, phi: s.phi, r: s.r }, to = { theta: p.theta, phi: p.phi, r: fitR() };
+    var t0 = performance.now();
+    (function step(t) {
+      var k = Math.min(1, (t - t0) / 600), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      s.theta = from.theta + (to.theta - from.theta) * e;
+      s.phi = from.phi + (to.phi - from.phi) * e;
+      s.r = from.r + (to.r - from.r) * e;
+      apply();
+      if (k < 1) requestAnimationFrame(step);
+    })(t0);
+  }
+  function resize() {
+    var w = stage.clientWidth || window.innerWidth, h = stage.clientHeight || window.innerHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h; camera.updateProjectionMatrix();
+    if (!touched) s.r = fitR();
+    apply();
+  }
+  window.addEventListener('resize', resize);
+
+  var cv = renderer.domElement, ptrs = {}, pinch = 0;
+  function count() { return Object.keys(ptrs).length; }
+  function dist() { var k = Object.keys(ptrs), a = ptrs[k[0]], b = ptrs[k[1]]; return Math.hypot(a.x - b.x, a.y - b.y); }
+  cv.addEventListener('pointerdown', function (e) {
+    cv.setPointerCapture(e.pointerId);
+    ptrs[e.pointerId] = { x: e.clientX, y: e.clientY };
+    if (count() === 2) pinch = dist();
+    touched = true;
+  });
+  cv.addEventListener('pointermove', function (e) {
+    var p = ptrs[e.pointerId]; if (!p) return;
+    var dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX; p.y = e.clientY;
+    if (count() === 1) { s.theta -= dx * 0.006; s.phi -= dy * 0.005; apply(); }
+    else if (count() === 2) { var d = dist(); if (pinch) { s.r *= pinch / d; apply(); } pinch = d; }
+  });
+  function up(e) { delete ptrs[e.pointerId]; pinch = 0; }
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+  cv.addEventListener('wheel', function (e) { e.preventDefault(); touched = true; s.r *= Math.exp(e.deltaY * 0.001); apply(); }, { passive: false });
+
+  function placeTags() {
+    if (!labelsOn) return;
+    var w = stage.clientWidth, h = stage.clientHeight, v = new THREE.Vector3();
+    TAGS.forEach(function (t) {
+      v.copy(t.pos).project(camera);
+      t.el.hidden = v.z > 1;
+      t.el.style.left = ((v.x * 0.5 + 0.5) * w) + 'px';
+      t.el.style.top = ((-v.y * 0.5 + 0.5) * h) + 'px';
+    });
+  }
+
+  /* ---------- UI ---------- */
+  Array.prototype.forEach.call(document.querySelectorAll('[data-view]'), function (b) {
+    b.addEventListener('click', function () { goTo(VIEWS[b.getAttribute('data-view')]); });
+  });
+  var machBtn = document.getElementById('mach'), stdBtn = document.getElementById('std'), labBtn = document.getElementById('lab');
+  machBtn.addEventListener('click', function () {
+    var on = machBtn.getAttribute('aria-pressed') !== 'true';
+    machBtn.setAttribute('aria-pressed', String(on)); MACH.visible = on; dirty = true;
+  });
+  stdBtn.addEventListener('click', function () {
+    var on = stdBtn.getAttribute('aria-pressed') !== 'true';
+    stdBtn.setAttribute('aria-pressed', String(on)); build(on); apply();
+  });
+  var trayBtn = document.getElementById('tray');
+  trayBtn.addEventListener('click', function () {
+    var on = trayBtn.getAttribute('aria-pressed') !== 'true';
+    trayBtn.setAttribute('aria-pressed', String(on)); 
+    // If button is pressed, extend tray (0.8), else retract (0)
+    trayT = on ? 0.8 : 0; 
+    dirty = true;
+  });
+  function setLabels(on) {
+    labelsOn = on; labBtn.setAttribute('aria-pressed', String(on));
+    TAGS.forEach(function (t) { t.el.hidden = !on; });
+    dirty = true;
+  }
+  labBtn.addEventListener('click', function () { setLabels(!labelsOn); });
+
+  /* ---------- go ---------- */
+  build(false);
+  resize();
+  if (stage.clientWidth > 700) setLabels(true);
+  (function loop() {
+    requestAnimationFrame(loop);
+    var dd = trayT - trayCur;
+    if (Math.abs(dd) > 0.001) { trayCur += dd * 0.12; dirty = true; } else if (trayCur !== trayT) { trayCur = trayT; dirty = true; }
+    if (TRAY) TRAY.position.z = trayCur * 450;
+    if (!dirty) return;
+    dirty = false;
+    renderer.render(scene, camera);
+    placeTags();
+  })();
+})();
+</script>
+
+</body></html>
